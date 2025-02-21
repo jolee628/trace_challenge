@@ -84,12 +84,17 @@
 """
 
 from pydantic import BaseModel
-from typing import Any, Optional
+from typing import Any, Optional, List
 
+
+class Header(BaseModel):
+    name: str
+    value: str
 
 class Request(BaseModel):
     url: str
     method: str
+    headers: List[Header]
 
 
 class Response(BaseModel):

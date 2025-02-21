@@ -13,6 +13,8 @@ class TrieNode:
         self.avg_time = 0
         self.response_count = defaultdict(int)
         self.unique_response_set = set()
+        self.user_agent_count = defaultdict(int)
+        self.host_count = defaultdict(int)
 
 
 class Trie:
@@ -43,6 +45,7 @@ class Trie:
         method = entry.request.method
         path = entry.request.url
         time = entry.time
+        headers = entry.request.headers
 
         # filter out empty string
         path = list(filter(None, path.split("/")))
@@ -87,11 +90,17 @@ class Trie:
         if entry.response.text:
             cur.unique_response_set.add(entry.response.text)
 
+        for header in headers:
+            if header.name == "User-Agent":
+                cur.user_agent_count[header.value] += 1
+            elif header.name == "Host":
+                cur.host_count[header.value] += 1
+
     def print_trie(self, node=None, path=None):
         # Start from root node if none specified
-        if node is None:
+        if not node:
             node = self.root
-        if path is None:
+        if not path:
             path = []
 
         # Print the current path and the associated node data
@@ -107,6 +116,11 @@ class Trie:
                 duplicated_response_rate = ((node.count - len(node.unique_response_set)) / node.count) * 100
                 print(f"  Duplicated Response Rate: {round(duplicated_response_rate,2)}%")
 
+            print("  User-Agent count: ")
+            pprint(dict(node.user_agent_count))
+            print("  Host count: ")
+            pprint(dict(node.host_count))
+
             print(f"\n\n")
 
         # Recursively print each child
@@ -121,7 +135,7 @@ class TraceChallenge:
 
     @staticmethod
     def trace_count():
-        counts = defaultdict(lambda: collections.defaultdict(int))
+        counts = defaultdict(lambda: defaultdict(int))
         method_set = set()
         with open("trace.har", "rb") as f:
             for entry in ijson.items(f, "log.entries.item"):
@@ -169,6 +183,7 @@ class TraceChallenge:
         4. Response stats - status_code: count
         5. Duplicated Response Rate to try to detect potential DoS / Spam
             5.a: (Potential Improvement, out of time to implement) - for a more accurate DoS/Spam, do something by looking at the time stamp
+        6. User-Agent - a lot of selenium, potentially user web-scraping
 
         Attempted:
         To print out the response and try to make sense of what they could be. But too many encoded
@@ -179,7 +194,8 @@ class TraceChallenge:
             for entry in ijson.items(f, "log.entries.item"):
                 url = entry["request"]["url"]
                 method = entry["request"]["method"]
-                request = Request(url=url, method=method)
+                headers = entry["request"]["headers"]
+                request = Request(url=url, method=method, headers=headers)
 
                 status = entry["response"]["status"]
 
@@ -198,8 +214,8 @@ class TraceChallenge:
 
 
 tc = TraceChallenge()
-tc.trace_count()
-print()
-tc.response_time_analytics()
-print()
+# tc.trace_count()
+# print()
+# tc.response_time_analytics()
+# print()
 tc.infer_path_params_and_stats()
